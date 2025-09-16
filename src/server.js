@@ -25,7 +25,7 @@ const PORT = process.env.PORT || 5000;
 //  CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://rrp-gamma.vercel.app/',
+  'https://rrp-gamma.vercel.app',
 ];
 
 app.use(
