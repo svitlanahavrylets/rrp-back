@@ -42,24 +42,20 @@ console.log('NODE_ENV =', NODE_ENV);
 
 const swaggerSpec = swaggerJSDoc(options);
 
-// guard: у dev пускаємо всіх; у prod вимагаємо ?token=
-const swaggerGuard = (req, res, next) => {
-  if (NODE_ENV === 'development') return next();
-  if (req.query?.token === process.env.SWAGGER_TOKEN) return next();
-  return res.status(403).send('⛔️ Access Denied. Token required.');
-};
-
 export const swaggerDocs = (app) => {
+  app.use('/api-docs', swaggerUi.serve);
+
+  const guard = (req, res, next) => {
+    if (NODE_ENV !== 'production') return next();
+    if (req.query?.token === process.env.SWAGGER_TOKEN) return next();
+    return res.status(403).send('⛔️ Access Denied. Token required.');
+  };
+
   if (NODE_ENV === 'production' && !process.env.SWAGGER_TOKEN) {
     console.warn('⚠️ SWAGGER_TOKEN is not set in production.');
   }
 
-  app.use(
-    '/api-docs',
-    swaggerGuard,
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec),
-  );
+  app.get('/api-docs', guard, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
   if (NODE_ENV === 'development') {
     console.log('📚 Swagger available at: http://localhost:5000/api-docs');
