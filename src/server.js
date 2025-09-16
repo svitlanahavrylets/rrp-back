@@ -46,14 +46,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Swagger Docs
-app.use('/api-docs', (req, res, next) => {
-  const token = req.query.token;
-  if (token === process.env.SWAGGER_TOKEN) {
-    return swaggerDocs(app)(req, res, next);
-  } else {
-    return res.status(403).send('⛔️ Access Denied');
-  }
-});
+swaggerDocs(app);
 
 app.set('trust proxy', 1);
 

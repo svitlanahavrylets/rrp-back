@@ -1,11 +1,14 @@
 import mongoose from 'mongoose';
 
-const TestSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true },
-  phone: { type: String, required: true },
-  message: { type: String, required: true, minlength: 0 },
-});
+const TestSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String, required: true },
+    message: { type: String, required: true, minlength: 0 },
+  },
+  { timestamps: true, versionKey: false },
+);
 
 const TestModel = mongoose.model('Test', TestSchema);
 

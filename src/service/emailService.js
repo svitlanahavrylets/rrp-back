@@ -1,115 +1,134 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
-// Environment variables check
-if (
-  !process.env.EMAIL_USER ||
-  !process.env.EMAIL_PASS ||
-  !process.env.OWNER_EMAIL
-) {
-  console.error('❌ Chyba: chybí potřebné proměnné prostředí!');
+const required = ['EMAIL_USER', 'EMAIL_PASS', 'OWNER_EMAIL'];
+const missing = required.filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error('❌ Missing ENV:', missing.join(', '));
   process.exit(1);
 }
 
-console.log('🔗 Připojuji se k SMTP...');
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.seznam.cz';
+const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+const SMTP_SECURE = process.env.SMTP_SECURE
+  ? process.env.SMTP_SECURE === 'true'
+  : SMTP_PORT === 465;
 
-// SMTP transporter — uses your WEDOS mailbox
-const transporter = nodemailer.createTransport({
-  host: 'wes1-smtp.wedos.net',
-  port: 465,
-  secure: true,
+export const transporter = nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_SECURE,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  pool: true,
+  maxConnections: 3,
+  maxMessages: 50,
 });
 
-// Timeout wrapper
-const withTimeout = (promise, ms) => {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(
-      () => reject(new Error('⏰ Odesílání e-mailu trvalo příliš dlouho!')),
-      ms,
-    ),
-  );
-  return Promise.race([promise, timeout]);
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const asset = (p) => path.resolve(__dirname, '..', 'assets', p);
 
-// Main function
+transporter.verify((err, ok) => {
+  if (err) {
+    console.error('❌ SMTP verify failed:', err.message);
+  } else {
+    console.log('✅ SMTP ready (Seznam.cz)');
+  }
+});
+
+const withTimeout = (promise, ms = 10000) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('⏰ SMTP timeout')), ms),
+    ),
+  ]);
+
 export const sendEmails = async (
   clientEmail,
   clientName,
   clientPhone,
   clientMessage,
 ) => {
-  try {
-    if (!clientEmail || !clientName || !clientPhone || !clientMessage) {
-      throw new Error('❌ Všechna pole jsou povinná pro odeslání e-mailu!');
-    }
+  if (!clientEmail || !clientName || !clientPhone || !clientMessage) {
+    throw new Error('❌ Všechna pole jsou povinná pro odeslání e-mailu!');
+  }
 
-    const clientMailOptions = {
-      from: `"RRP s.r.o." <${process.env.EMAIL_USER}>`,
-      to: clientEmail,
-      subject: '✅ Váš požadavek byl úspěšně přijat.',
-      text: `Dobrý den, ${clientName}! Děkujeme za vaši žádost. Vaši zprávu jsme obdrželi a brzy se vám ozveme.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; text-align: center;">
-          <img src="cid:logo" alt="Logo" style="width: 300px; margin-bottom: 24px;" />
-          <h2>Dobrý den, ${clientName}!</h2>
-          <p>Děkujeme za vaši žádost! Vaši zprávu jsme obdrželi a brzy se s vámi spojíme.</p>
-          <p>Pokud máte jakékoli další dotazy, neváhejte odpovědět na tento e-mail.</p>
-          <p><strong>Jednatel RRP s.r.o.</strong></p>
-        </div>
-      `,
-      attachments: [
-        {
-          filename: 'logo.png',
-          // NOTE: path left as-is to avoid logic changes
-          path: path.resolve('src/assets/logo.png.png'),
-          cid: 'logo',
-        },
-      ],
-    };
+  const FROM = `"RRP s.r.o." <${process.env.EMAIL_USER}>`;
 
-    const ownerMailOptions = {
-      from: `"RRP s.r.o." <${process.env.EMAIL_USER}>`,
-      to: process.env.OWNER_EMAIL,
-      subject: 'Nová žádost od klienta.',
-      text: `
-📩 Nová žádost od klienta!
+  const logoPath = asset('logo.png.png');
+  const attachments = fs.existsSync(logoPath)
+    ? [{ filename: 'logo.png', path: logoPath, cid: 'logo' }]
+    : [];
 
-🔹 Jméno: ${clientName}
-📧 E-mail: ${clientEmail}
-📞 Telefon: ${clientPhone}
-📝 Zpráva:
+  const clientMail = {
+    from: FROM,
+    to: clientEmail,
+    subject: '✅ Váš požadavek byl úspěšně přijat',
+    text: `Dobrý den, ${clientName}! Děkujeme za vaši žádost. Brzy se vám ozveme.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#333;text-align:center">
+        ${
+          attachments.length
+            ? `<img src="cid:logo" alt="Logo" style="width:260px;margin-bottom:16px" />`
+            : ''
+        }
+        <h2>Dobrý den, ${clientName}!</h2>
+        <p>Děkujeme za vaši žádost. Vaši zprávu jsme obdrželi a brzy se s vámi spojíme.</p>
+        <p><strong>RRP s.r.o.</strong></p>
+      </div>
+    `,
+    attachments,
+  };
+
+  const ownerMail = {
+    from: FROM,
+    to: process.env.OWNER_EMAIL,
+    subject: 'Nová žádost od klienta',
+    text: `📩 Nová žádost
+
+Jméno:   ${clientName}
+E-mail:  ${clientEmail}
+Telefon: ${clientPhone}
+
+Zpráva:
 ${clientMessage}
 
-📅 Datum odeslání: ${new Date().toLocaleString()}
-      `,
-    };
+Odesláno: ${new Date().toLocaleString()}
+`,
+  };
 
-    // Send with timeout
-    console.log('📬 Připravuji e-mail pro klienta:', clientMailOptions);
-    console.log('📬 Připravuji e-mail pro majitele:', ownerMailOptions);
-
-    await Promise.all([
-      withTimeout(transporter.sendMail(clientMailOptions), 7000),
-      withTimeout(transporter.sendMail(ownerMailOptions), 7000),
+  try {
+    const results = await Promise.allSettled([
+      withTimeout(transporter.sendMail(clientMail)),
+      withTimeout(transporter.sendMail(ownerMail)),
     ]);
 
-    console.log('✅ E-mail klientovi odeslán.');
-    console.log('✅ E-mail majiteli odeslán.');
-    console.log(
-      `✅ E-maily odeslány na ${clientEmail} a ${process.env.OWNER_EMAIL}`,
-    );
+    const [cRes, oRes] = results;
 
-    return true;
-  } catch (error) {
-    console.error('❌ Chyba při odesílání e-mailu:', error.message);
-    if (error.response) console.error('📩 SMTP odpověď:', error.response);
+    if (cRes.status === 'rejected') {
+      console.error('❌ E-mail klientovi selhal:', cRes.reason?.message);
+    } else {
+      console.log('✅ E-mail klientovi odeslán');
+    }
+
+    if (oRes.status === 'rejected') {
+      console.error('❌ E-mail majiteli selhal:', oRes.reason?.message);
+    } else {
+      console.log('✅ E-mail majiteli odeslán');
+    }
+
+    return oRes.status === 'fulfilled';
+  } catch (err) {
+    console.error('❌ Chyba při odesílání e-mailu:', err.message);
     return false;
   }
 };
