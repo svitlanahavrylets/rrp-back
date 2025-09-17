@@ -59,47 +59,68 @@ src/
 
 1. Clone repository
 
+```plaintext
 git clone https://github.com/svitlanahavrylets/rrp-back.git
 cd rrp-back
+```
 
 2. Install dependencies
 
+```plaintext
 npm install
+```
 
 3. Configure environment variables
 
 Create a .env file in the root directory:
 
+```plaintext
 PORT=5000
+
 NODE_ENV=development
 
 MONGO_URL=mongodb+srv://...
 
 ACCESS_SECRET=...
+
 REFRESH_SECRET=...
+
 ACCESS_EXPIRES=
+
 REFRESH_EXPIRES=
 
 ADMIN_PANEL_PASSWORD=...
 
 CLOUDINARY_API_KEY=...
+
 CLOUDINARY_API_SECRET=...
+
 CLOUDINARY_CLOUD_NAME=...
 
 EMAIL_USER=
+
 EMAIL_PASS=...
+
 OWNER_EMAIL=
 
 SWAGGER_TOKEN=some-secret-token
+
 SERVER_URL=https://rrp-back.onrender.com
+```
 
 ⚠️ Never commit .env to GitHub!
 
 4. Run in development mode
+
+```plaintext
    npm run dev
+```
 
 5. Run in production
+
+```plaintext
    npm start
+```
 
 ## 📑 SWAGGER DOCS
 
